@@ -107,8 +107,8 @@ shinyUI(
                                helpText("In case you need to know which column corresponds to what feature you can use this slider. 
                                                          Drag the slider to any column and the adjacent columns with column numbers and variable names will show on the right.")),
                         column(3,
-                               helpText("e.g.1:100-120"),
-                               helpText("e.g.2:100-120,150,197-200"),
+                               helpText("e.g.1:4948-12971"),
+                               helpText("e.g.2:4948-10000,12000,12500-12550"),
                                helpText("Or type feature names, separated by and ended with semicolons"),
                                helpText("e.g.3:EFCAB8; GGACT; ATAT1; CABP4; CCNK;"),
                                hr(),
@@ -204,8 +204,8 @@ shinyUI(
                                helpText("In case you need to know which column corresponds to what feature you can use this slider. 
                                                          Drag the slider to any column and the adjacent columns with column numbers and variable names will show on the right.")),
                         column(3,
-                               helpText("e.g.1:100-120"),
-                               helpText("e.g.2:100-120,150,197-200"),
+                               helpText("e.g.1:14-683"),
+                               helpText("e.g.2:14-100,150-200,350"),
                                helpText("Or type feature names, separated by and ended with semicolons"),
                                helpText("e.g.3:ABCA9; ABCC1; GCNA; TICRR;"),
                                hr(),
