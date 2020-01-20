@@ -70,7 +70,7 @@ server <- function(input, output, session) {
         selected = colnames(inData())[3],
         multiple = F, 
         options  = list('actions-box'=TRUE, title="Click here", 'deselect-all-text'="None", 'select-all-text'="All"),
-        width = '80%'
+        width = '70%'
       )
     }else{
       pickerInput(
@@ -79,7 +79,7 @@ server <- function(input, output, session) {
         selected = NULL,
         multiple = F, 
         options  = list('actions-box'=TRUE, title="Click here", 'deselect-all-text'="None", 'select-all-text'="All"),
-        width = '80%'
+        width = '70%'
       )
     }
   })
@@ -182,6 +182,16 @@ server <- function(input, output, session) {
     inPred
   })
   
+  lr.covariates <- reactive({
+    
+    inPred <- which( colnames(inData()) %in%  input$selected_covariates_model )
+    
+    if (is.null(inPred)) return(NULL)
+    
+    inPred
+    
+  })
+  
   #### 2-g. Run the result                             ####
   output$lr.gene_button <- renderUI({
     if(is.null(inData()))
@@ -243,7 +253,16 @@ server <- function(input, output, session) {
       gene.gene.col = NULL
     }
     else{
-      gene.gene.col = which_col(input$col_keyin)
+      if(is.numeric(which_col(input$col_keyin))){
+        gene.gene.col = which_col(input$col_keyin)
+      } 
+      else{
+        gene.gene.col = NULL
+        for (i in 1:length(which_col(input$col_keyin))) {
+          gene.gene.col = c(gene.gene.col, which(names(inData())==which_col(input$col_keyin)[i]))
+        }
+        sort(gene.gene.col)
+      }
     }
     lr.list = lr.gene.penalty.cv.result(user.data = inData(), 
                                         response.col  = response.col(), 
@@ -252,7 +271,10 @@ server <- function(input, output, session) {
                                         fdr.threshold = input$fdr_threshold,
                                         penalty.alpha = input$penalty_select , 
                                         nfold         = input$num.cv.fold, 
-                                        force.add.cov = covariates.lr.model())
+                                        force.add.cov = if(length(lr.covariates()) == 0){NULL}else{
+                                          lr.covariates()
+                                        })
+                                        #force.add.cov = covariates.lr.model())
     if (is.null(inData())) return(NULL)
     lr.list
   })
@@ -282,7 +304,7 @@ server <- function(input, output, session) {
         selected = colnames(inData())[10],
         multiple = F, options = list('actions-box' = TRUE, title = "Click here"
                                      , 'deselect-all-text' = "None", 'select-all-text' = "All"),
-        width = '80%'
+        width = '70%'
       )
     }else{
       pickerInput(
@@ -291,7 +313,7 @@ server <- function(input, output, session) {
         selected = NULL,
         multiple = F, options = list('actions-box' = TRUE, title = "Click here"
                                      , 'deselect-all-text' = "None", 'select-all-text' = "All"),
-        width = '80%'
+        width = '70%'
       )
     }
   })
@@ -307,7 +329,7 @@ server <- function(input, output, session) {
         selected = colnames(inData())[9],
         multiple = F, options = list('actions-box' = TRUE, title = "Click here"
                                      , 'deselect-all-text' = "None", 'select-all-text' = "All"),
-        width = '80%'
+        width = '70%'
       )
     }else{
       pickerInput(
@@ -316,7 +338,7 @@ server <- function(input, output, session) {
         selected = NULL,
         multiple = F, options = list('actions-box' = TRUE, title = "Click here"
                                      , 'deselect-all-text' = "None", 'select-all-text' = "All"),
-        width = '80%'
+        width = '70%'
       )
     }
   })
@@ -499,11 +521,20 @@ server <- function(input, output, session) {
       )
     }
     
-    if(is.na(which_col(input$col_keyin2))){
+    if(is.na(input$col_keyin2)){
       gene.gene.col.cox = NULL
     }
     else{
-      gene.gene.col.cox = which_col(input$col_keyin2)
+      if(is.numeric(which_col(input$col_keyin2))){
+        gene.gene.col.cox = which_col(input$col_keyin2)
+      } 
+      else{
+        gene.gene.col.cox = NULL
+        for (i in 1:length(which_col(input$col_keyin2))) {
+          gene.gene.col.cox = c(gene.gene.col.cox, which(names(inData())==which_col(input$col_keyin2)[i]))
+        }
+        sort(gene.gene.col.cox)
+      }
     }
     
     cox.list = cox.gene.penalty.cv.result(user.data = inData(),

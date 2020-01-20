@@ -100,13 +100,17 @@ shinyUI(
                       fluidRow(
                         column(4,
                                # genetic covariate column
-                               textInput('col_keyin', 'Columns of genetic covariates', NULL, value = "4948-12971", width = '90%'), #placeholder = "100-120,150-155,197-200"),
+                               textInput('col_keyin', 'Columns of genetic covariates', NULL, value = "4948-12971", width = '90%'), 
+                               hr(),
+                               hr(),
                                sliderInput("cov_slider", " ", min=1, max=8000, value=4948, width = '550px'),
                                helpText("In case you need to know which column corresponds to what feature you can use this slider. 
                                                          Drag the slider to any column and the adjacent columns with column numbers and variable names will show on the right.")),
-                        column(2,
+                        column(3,
                                helpText("e.g.1:100-120"),
                                helpText("e.g.2:100-120,150,197-200"),
+                               helpText("Or type feature names, separated by and ended with semicolons"),
+                               helpText("e.g.3:EFCAB8; GGACT; ATAT1; CABP4; CCNK;"),
                                hr(),
                                uiOutput("cov_slider_100")
                                #uiOutput("tt") #### 1122
@@ -193,13 +197,17 @@ shinyUI(
                       fluidRow(
                         column(4,
                                # genetic covariate column
-                               textInput('col_keyin2', 'Columns of genetic covariates', NULL, value = "14-683", width = '90%'), #placeholder = "100-120,150-155,197-200"),
+                               textInput('col_keyin2', 'Columns of genetic covariates', NULL, value = "14-683", width = '90%'), 
+                               hr(),
+                               hr(),
                                sliderInput("cov_slider2", "", min=1, max=8000, value=14, width = '550px'),
                                helpText("In case you need to know which column corresponds to what feature you can use this slider. 
                                                          Drag the slider to any column and the adjacent columns with column numbers and variable names will show on the right.")),
-                        column(2,
+                        column(3,
                                helpText("e.g.1:100-120"),
                                helpText("e.g.2:100-120,150,197-200"),
+                               helpText("Or type feature names, separated by and ended with semicolons"),
+                               helpText("e.g.3:ABCA9; ABCC1; GCNA; TICRR;"),
                                hr(),
                                uiOutput("cov_slider_100_2")),
                         column(3,
