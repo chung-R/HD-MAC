@@ -30,20 +30,39 @@ cox.gene.penalty.cv.result = function(user.data, time.col, event.col,
     tmpsum = apply(user.data[ train, gene.col ], 2, sum)
     gene.col.train = gene.col[tmpsum != 0]
     
-    #### univariate logistic regression fdr ####
+    
+    
+    #### univariate cox regression fdr ####
     
     if( padj.method == "fdr" ){ 
-      gene.p.val = sapply(gene.col.train , function(i){
-        # fit   = coxph(Surv(time, delta)~., data = as.data.frame(cbind(time = time, delta = delta, user.data[,i])), subset = train)
-        fit  = survdiff(Surv(time, delta) ~ ., data = as.data.frame(cbind(time = time, delta = delta, user.data[,i])), subset = train)
-        return(1-pchisq(fit$chisq,1)) # summary(fit)$coefficients[5]
-      })
+      #### checking element is binary or continue ####
+      elem <- unlist(user.data[,gene.col.train])
+      
+      if (setequal(elem,c(1,0))){
+        gene.p.val = sapply(gene.col.train , function(i){
+          fit  = survdiff(Surv(time, delta) ~ ., data = as.data.frame(cbind(time = time, delta = delta, user.data[,i])), subset = train)
+          return(1-pchisq(fit$chisq,1))  
+        })
+      }else{ 
+        gene.p.val = sapply(gene.col.train , function(i){
+          fit   = coxph(Surv(time, delta)~., data = as.data.frame(cbind(time = time, delta = delta, user.data[,i])), subset = train)
+          return(summary(fit)$coefficients[5])})
+      }
+      
       tmp.p = p.adjust(gene.p.val, padj.method)
       fdr.genes.col = gene.col.train[ which( tmp.p <= fdr.threshold ) ]
-      if (length(fdr.genes.col) == 0) stop("small fdr.threshold --> no genes selected")}
-    else{
+      
+      if ((length(fdr.genes.col) == 0)) return(list( c_index       = NA,
+                                                     selected.gene = NA, 
+                                                     coef.and.p    = "small fdr.threshold --> no genes selected" ))
+      if (length(fdr.genes.col) == 1) return( list( c_index = NA,
+                                                    selected.gene    =  NA,
+                                                    coef.and.p       =  c("Just one gene has been chosen after FDR",
+                                                                          fdr.genes.col )))
+    }else{
         fdr.genes.col = gene.col.train
-      }
+    }
+    
     
     #### Regression part ####
     x <- data.matrix(user.data[, fdr.genes.col])
@@ -66,24 +85,26 @@ cox.gene.penalty.cv.result = function(user.data, time.col, event.col,
     
     #### Ridge and Lasso ####
     if( ! adaptive.lasso ){
-      
       #### Standard error and p-value for estimated coefficients ####
-      if( nfold == 1 && penalty.alpha == 1 ){
         lasso.est.coef    = as.numeric(coef(cv.out, s = lambda_min))
-        cv.est.coef       = coef(cv.out, s = lambda_min/dim(user.data)[1])
+        cv.est.coef       = coef(cv.out, s = lambda_min)
         best_coef         = as.numeric(cv.est.coef)
-        ##li = fixedLassoInf(x, time, beta = best_coef, lambda = lambda_min, status = delta, family = "cox")
-        # li = fixedLassoInf(x[,-which(duplicated(x, MARGIN = 2))], time, beta = best_coef[-which(duplicated(x, MARGIN = 2))], lambda = lambda_min, status = delta, family = "cox")
-        # which(duplicated(x, MARGIN = 2))
-        ##best_coef_p_value = li$pv
         
-        cv.lasso.est.coef   = coef(cv.out, s = lambda_min)
+        if(sum(duplicated(x, MARGIN = 2))){
+         li = fixedLassoInf(x[,-which(duplicated(x, MARGIN = 2))], time, beta = best_coef[-which(duplicated(x, MARGIN = 2))], lambda = lambda_min, status = delta, family = "cox")
+        # which(duplicated(x, MARGIN = 2))
+        }else{
+          li = fixedLassoInf(x, time, beta = best_coef, lambda = lambda_min, status = delta, family = "cox")
+        }
+        best_coef_p_value = li$pv
+        
+       # la_geneSel          = row.names(cv.est.coef)[which(best_coef != 0)]
         la_geneSel          = row.names(cv.est.coef)[which(best_coef != 0)]
         d = cbind(gene_list = la_geneSel, 
-                  estimated_coefficient = lasso.est.coef[which(lasso.est.coef != 0)] #, 
-                  ##p_value = best_coef_p_value
+                  estimated_coefficient = lasso.est.coef[which(lasso.est.coef != 0)] , 
+                  p_value = best_coef_p_value
                   )
-        }
+      
       
       #### c-index ####
       u5          =  data.frame(Death = delta, Death_surtime = time)[test,]
@@ -91,13 +112,11 @@ cox.gene.penalty.cv.result = function(user.data, time.col, event.col,
       
       #### print result ####
       if(is.null(force.add.cov)){
-        if( nfold == 1 && penalty.alpha == 1 ){
         return( list( c_index       = c.index(u5 = u5, cut_hazard1 = cut_hazard1), 
                       selected.gene = ((as.matrix(coef(cv.out, s = lambda_min)))[which( (as.numeric(coef(cv.out, s = lambda_min))) != 0),] ),
-                      coef.and.p    = as.data.frame(d) ))}
-        else{return( list( c_index       = c.index(u5 = u5, cut_hazard1 = cut_hazard1), 
-                           selected.gene = ((as.matrix(coef(cv.out, s = lambda_min)))[which( (as.numeric(coef(cv.out, s = lambda_min))) != 0),] )))}
-      }else{
+                      coef.and.p    = as.data.frame(d) 
+                      ))
+        }else{
         #### add clinical covariates ####
         geneSel              = rownames(( (as.matrix(coef(cv.out, s = lambda_min))) ))[which( (as.numeric(coef(cv.out, s = lambda_min))) != 0)]
         cox.data             = data.frame(cbind( time = time[train], delta = delta[train],user.data[train, force.add.cov],x.train[, c(which(colnames(x.train) %in% geneSel)) ]) )
@@ -110,19 +129,16 @@ cox.gene.penalty.cv.result = function(user.data, time.col, event.col,
         rownames(summary.fit)[1:length(force.add.cov)] = colnames(user.data)[force.add.cov]
         
         #### print result ####
-        if( nfold == 1 && penalty.alpha == 1 ){
         return(list( c_index = c.index(u5 = u5, cut_hazard1 = cut_hazard1), 
                      selected.gene = (summary.fit[,1])[! is.na(summary.fit[,1])],
-                     coef.and.p    = as.data.frame(d) ))}
-        else{return(list( c_index = c.index(u5 = u5, cut_hazard1 = cut_hazard1), 
-                          selected.gene = (summary.fit[,1])[! is.na(summary.fit[,1])] ))}
+                     coef.and.p    = as.data.frame(d) ))
       }
     }else{
       #### Adaptive Lasso : Weight Change ####
       cv.est.coef       = coef(cv.out, s =  lambda_min  )
       best_coef         = as.numeric(coef(cv.out, s =  lambda_min  ))
-      geneSel           = rownames(as.matrix(cv.est.coef))[which(!( best_coef == 0))]
-      w.vector          = 1 / (abs(best_coef)[which(!( best_coef == 0))])
+      geneSel           = rownames(as.matrix(cv.est.coef))[which(!(best_coef == 0))]
+      w.vector          = 1 / (abs(best_coef)[which(!(best_coef == 0))])
       w.vector[w.vector == Inf] = 999999999
       
       #### Perform adaptive LASSO ####
@@ -132,25 +148,29 @@ cox.gene.penalty.cv.result = function(user.data, time.col, event.col,
       best_coef_adap_la         = as.numeric(cv.adap.lasso.est.coef)
       adap_la_geneSel           = rownames(cv.adap.lasso.est.coef)
       
+      adaplasso.est.coef        = best_coef_adap_la 
+      
       #### Standard error and p-value for estimated coefficients ####
-      if( nfold == 1 && penalty.alpha == 1 ){
         adaplasso.est.coef        = as.numeric(coef(fit1_cv, s = lambda_min_ada))
         
-        cv.adap.lasso.est.coef    = coef(fit1_cv, s = lambda_min_ada/dim(user.data)[1])
+        cv.adap.lasso.est.coef    = coef(fit1_cv, s = lambda_min_ada)
         best_coef_adap_la         = as.numeric(cv.adap.lasso.est.coef)
-        ##adap.l.i                  = fixedLassoInf(x = x[,colnames(x) %in% geneSel], time, beta = best_coef_adap_la, lambda = lambda_min_ada, status = delta, family = "cox")
-        # dd = x.train[,colnames(x.train) %in% geneSel]
-        # index = which(duplicated(x.train[,colnames(x.train) %in% geneSel], MARGIN = 2))
-        # adap.l.i = fixedLassoInf(dd[,-index], time, beta = best_coef_adap_la[-index], lambda = lambda_min, status = delta, family = "cox")
-        # which(duplicated(x, MARGIN = 2))
-        ##best_coef_adap_la_p_value = adap.l.i$pv
+        dd = x[,colnames(x.train) %in% geneSel]
+        
+        if(sum(duplicated(dd, MARGIN = 2))){
+          index = which(duplicated(dd, MARGIN = 2))
+          adap.l.i = fixedLassoInf(dd[,-index], time, beta = best_coef_adap_la[-index], lambda = lambda_min, status = delta, family = "cox")
+        }else{
+          adap.l.i = fixedLassoInf(x = dd, time, beta = best_coef_adap_la, lambda = lambda_min_ada, status = delta, family = "cox")
+        }# which(duplicated(x, MARGIN = 2))
+        
+        best_coef_adap_la_p_value = adap.l.i$pv
         
         la_geneSel        = row.names(cv.adap.lasso.est.coef)[which(best_coef_adap_la != 0)]
         d = cbind(gene_list = la_geneSel,
-                  estimated_coefficient = adaplasso.est.coef[which(adaplasso.est.coef != 0)] #, 
-                  ##p_value = best_coef_adap_la_p_value
+                  estimated_coefficient = adaplasso.est.coef[which(adaplasso.est.coef != 0)] , 
+                  p_value = best_coef_adap_la_p_value
                   )
-        }
       
       lasso_prob        = predict( fit1_cv , newx = x.train[,colnames(x.train) %in% geneSel], s=lambda_min_ada , type="response")
       
@@ -160,13 +180,9 @@ cox.gene.penalty.cv.result = function(user.data, time.col, event.col,
       
       #### print result ####
       if(is.null(force.add.cov)){
-        if( nfold == 1 && penalty.alpha == 1 ){
-          return(list( c_index       = c.index(u5 = u5,cut_hazard1 = cut_hazard1),
+        return(list( c_index       = c.index(u5 = u5,cut_hazard1 = cut_hazard1),
                        selected.gene =( (as.matrix(coef(fit1_cv, s = lambda_min_ada))) )[which((as.numeric(coef(fit1_cv, s = lambda_min_ada))) != 0), ],
-                       coef.and.p    = as.data.frame(d) ))}
-        else{return(list( c_index       = c.index(u5 = u5,cut_hazard1 = cut_hazard1),
-                          selected.gene =( (as.matrix(coef(fit1_cv, s = lambda_min_ada))) )[which((as.numeric(coef(fit1_cv, s = lambda_min_ada))) != 0), ]))}
-        
+                       coef.and.p    = as.data.frame(d) ))
       }else{
         #### add clinical covariates ####
         geneSel              = rownames( as.matrix(coef(fit1_cv, s = lambda_min_ada)) )[which( (as.numeric(coef(fit1_cv, s = lambda_min_ada))) != 0)]
@@ -186,22 +202,21 @@ cox.gene.penalty.cv.result = function(user.data, time.col, event.col,
         rownames(summary.fit)[1:length(force.add.cov)] = colnames(user.data)[force.add.cov]
         
         #### print result ####
-        if( nfold == 1 && penalty.alpha == 1 ){
         return(list( c_index       = c.index(u5 = u5, cut_hazard1 = cut_hazard1),
                      selected.gene = (summary.fit[,1])[! is.na(summary.fit[,1])], 
-                     coef.and.p    = as.data.frame(d) ))}
-        else{return(list( c_index       = c.index(u5 = u5, cut_hazard1 = cut_hazard1),
-                          selected.gene = (summary.fit[,1])[! is.na(summary.fit[,1])] ))}
+                     coef.and.p    = as.data.frame(d) ))
       }
     }
     gc()  
   })
   
   #### Bind Result ####
-  if(nfold == 1 && penalty.alpha != 0){return( list(   c_index          =  mean(unlist(cox.gene.penalty.cv.list[1,])),
-                                                       selected.gene    =  cox.gene.penalty.cv.list["selected.gene",],
-                                                       coef.and.p       =  cox.gene.penalty.cv.list[3,]))}
-  else{return( list(   c_index          =  mean(unlist(cox.gene.penalty.cv.list[1,])),
-                       selected.gene    =  cox.gene.penalty.cv.list["selected.gene",] ))}
   
+    gc()
+  
+      return( list( c_index = mean(unlist(cox.gene.penalty.cv.list[1,])),
+                    selected.gene    =  cox.gene.penalty.cv.list["selected.gene",],
+                    coef.and.p       =  cox.gene.penalty.cv.list[3,]))
+  
+    
 }
